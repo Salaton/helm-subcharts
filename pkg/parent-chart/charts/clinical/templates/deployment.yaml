@@ -24,7 +24,6 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      serviceAccountName: {{ include "clinical.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
@@ -35,27 +34,154 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: 80
+              containerPort: {{ .Values.service.port }}
               protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+
+          env:
+            - name: PORT
+              value: {{ .Values.service.port | quote }}
+
+            - name: GOOGLE_CLOUD_PROJECT
+              value: {{ .Values.app.container.env.googleCloudProject | quote }}
+
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: {{ .Values.googleApplicationCredentialsSecret.filePath }}
+              
+            - name: GOOGLE_PROJECT_NUMBER
+              value: {{ .Values.app.container.env.googleProjectNumber | quote }}
+
+            - name: ENVIRONMENT
+              value: {{ .Values.app.container.env.environment | quote }}
+
+            - name: SENTRY_DSN
+              value: {{ .Values.app.container.env.sentryDSN | quote }}
+
+            - name: JWT_KEY
+              value: {{ .Values.app.container.env.jwtKey | quote }}
+
+            - name: CLOUD_HEALTH_PUBSUB_TOPIC
+              value: {{ .Values.app.container.env.cloudHealthPubsubTopic | quote }}
+
+            - name: CLOUD_HEALTH_DATASET_ID
+              value: {{ .Values.app.container.env.cloudHealthDatasetID | quote }}
+
+            - name: CLOUD_HEALTH_DATASET_LOCATION
+              value: {{ .Values.app.container.env.cloudHealthDatasetLocation | quote }}
+
+            - name: CLOUD_HEALTH_FHIRSTORE_ID
+              value: {{ .Values.app.container.env.cloudHealthFHIRStoreID | quote }}
+
+            - name: OPENCONCEPTLAB_TOKEN
+              value: {{ .Values.app.container.env.openConceptLabToken | quote }}
+
+            - name: SERVICE_HOST
+              value: {{ .Values.app.container.env.serviceHost | quote }}
+
+            - name: OPENCONCEPTLAB_API_URL
+              value: {{ .Values.app.container.env.openConceptAPIUrl | quote }}
+
+            - name: SAVANNAH_ADMIN_EMAIL
+              value: {{ .Values.app.container.env.savannahAdminEmail | quote }}
+
+            - name: AUTHSERVER_ENDPOINT
+              value: {{ .Values.app.container.env.authserverEndpoint | quote }}
+
+            - name: CLIENT_ID
+              value: {{ .Values.app.container.env.clientID | quote }}
+
+            - name: CLIENT_SECRET
+              value: {{ .Values.app.container.env.clientSecret | quote }}
+
+            - name: AUTH_USERNAME
+              value: {{ .Values.app.container.env.authUsername | quote }}
+
+            - name: AUTH_PASSWORD
+              value: {{ .Values.app.container.env.authPassword | quote }}
+
+            - name: GRANT_TYPE
+              value: {{ .Values.app.container.env.grantType | quote }}
+
+            - name: MYCAREHUB_CLIENT_ID
+              value: {{ .Values.app.container.env.mycarehubClientID | quote }}
+
+            - name: MYCAREHUB_CLIENT_SECRET
+              value: {{ .Values.app.container.env.mycarehubClientSecret | quote}}
+
+            - name: MYCAREHUB_INTROSPECT_URL
+              value: {{ .Values.app.container.env.mycarehubIntrospectURL | quote }}
+
+            - name: CLINICAL_BUCKET_NAME
+              value: {{ .Values.app.container.env.clinicalBucketName | quote }}
+
+            - name: SENTRY_TRACE_SAMPLE_RATE
+              value:  {{ .Values.app.container.env.defaultSentryTraceSampleRate | quote }}
+
+            - name: ADVANTAGE_BASE_URL
+              value: {{ .Values.app.container.env.advantageBaseURL | quote }}
+
+            - name: URL_SHORTENER_DOMAIN
+              value: {{ .Values.app.container.env.urlShortenerDomain | quote }}
+
+            - name: URL_SHORTENER_API_KEY
+              value: {{ .Values.app.container.env.urlShortenerApiKey | quote }}
+            
+            - name: REDIS_ADDRESS
+              value: {{ .Values.app.container.env.redisAddress | quote }}
+
+            - name: AWS_SECRET_ACCESS_KEY
+              value: {{ .Values.app.container.env.awsSecretAccessKey | quote }}
+
+            - name: AWS_ACCESS_KEY_ID
+              value: {{ .Values.app.container.env.awsAccessKeyID | quote }}
+
+            - name: SES_AWS_REGION
+              value: {{ .Values.app.container.env.sesawsRegion | quote }}
+
+            - name: JAEGER_COLLECTOR_ENDPOINT
+              value: {{ .Values.app.container.env.jaegerCollectorEndpoint | quote }}
+
+            - name: REFERRAL_DESTINATION_EMAIL
+              value: {{ .Values.app.container.env.referralDestinationEmail | quote }}
+
+            - name: DEFAULT_FROM_EMAIL
+              value: {{ .Values.app.container.env.defaultFromEmail | quote }}
+
+          volumeMounts:
+          - name: {{ .Values.googleApplicationCredentialsSecret.name }}
+            mountPath: {{ .Values.googleApplicationCredentialsSecret.mountPath }}
+            readOnly: true
+
+        - name: gotenberg
+          image: gotenberg/gotenberg:8
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          securityContext:
+            privileged: false
+            runAsUser: 1001
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "200m"
+          env:
+            - name: LOG_LEVEL
+              value: "DEBUG"
+            - name: DISABLE_GOOGLE_CHROME
+              value: "1"
+            - name: DISABLE_UNOCONV
+              value: "1"
+            - name: DISABLE_PDFTK
+              value: "1"
+              
+      volumes:
+        - name: {{ .Values.googleApplicationCredentialsSecret.name }}
+          secret:
+            secretName: {{ .Values.googleApplicationCredentialsSecret.name }}
+    
